@@ -1,0 +1,27 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+def loadDataSet(fileName, delim='\t'):
+    file = open(fileName)
+    stringArr = [line.strip().split(delim) for line in file.readlines()]
+    datArr = [list(map(float,line)) for line in stringArr]
+    return np.mat(datArr)
+
+def pca(dataMat,topNfeat):
+    meanVales=np.mean(dataMat,axis=0)
+    meanRemoved=dataMat-meanVales
+    covMat = np.cov(meanRemoved, rowvar=0)
+    eigValues,eigVects=np.linalg.eig(np.mat(covMat))
+    eigValInd=np.argsort(eigValues)
+    eigValInd = eigValInd[-1:-(topNfeat + 1):-1]
+    redEigVects = eigVects[:,eigValInd]
+    lowDData=meanRemoved*redEigVects
+    reconMat = (lowDData * redEigVects.T) + meanVales
+    return lowDData,reconMat
+
+dataMat=loadDataSet(r'D:\资源\python入门\计划单\机器学习\machinelearninginaction\Ch13\testSet.txt')
+lowDMat,reconMat=pca(dataMat,1)
+fig=plt.figure()
+ax=plt.subplot(111)
+ax.scatter(dataMat[:,0].flatten().A[0],dataMat[:,1].flatten().A[0],marker='^',s=90)       #flatten().A 是按照行的方向降维      F是列的方向
+ax.scatter(reconMat[:,0].flatten().A[0],reconMat[:,1].flatten().A[0],marker='o',s=90)
