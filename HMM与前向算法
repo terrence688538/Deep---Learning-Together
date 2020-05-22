@@ -1,0 +1,28 @@
+import numpy as np
+#来自书上的红白球例子
+A=np.mat([            #状态转移矩阵  第一个0.5表示由状态1转移到状态1的概率
+    [0.5,0.2,0.3],
+    [0.3,0.5,0.2],
+    [0.2,0.3,0.5]
+])
+B=np.mat([                #发射矩阵  第一个0.5表示状态一抽到红球的概率
+    [0.5,0.5],
+    [0.4,0.6],
+    [0.7,0.3]
+])
+O=np.mat([0,1,0])          #0表示红球
+pi=np.mat([0.2,0.4,0.4])
+T=3
+N,M=B.shape
+
+#计算初始值
+Aerfa=np.mat(np.zeros((3,3),dtype=np.float32))
+for i in range(N):
+    Aerfa[i,0]=pi[0,i]*B[i,O[0,0]]
+
+#递推计算
+for i in range(1,N):
+    for j in range(N):
+        Aerfa[j,i]=Aerfa[:,i-1].T*A[:,j]*B[j,O[0,i]]
+
+P=np.sum(Aerfa[:,2])
