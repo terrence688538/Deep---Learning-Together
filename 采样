@@ -1,0 +1,128 @@
+import numpy as np
+from collections import defaultdict
+import matplotlib.pyplot as plt
+import seaborn as sns
+"""""""""
+离散分布采样
+例子：p(x)=[0.1,0.2,0.3,0.4]，分别为"hello", “java”, “python”, "scala"四个词出现的概率
+"""""""""
+dic=defaultdict(int)
+def sample():
+    u=np.random.rand()
+    if u<0.1:
+        dic['hello'] +=1
+    elif u<0.3:
+        dic['java'] +=1
+    elif u<0.6:
+        dic['python'] +=1
+    else:
+        dic['scala'] +=1
+def sampleNtime():
+    for i in range(1000):
+        sample()
+    for k,v in dic.items():
+        print(k,v)
+
+"""""""""
+Box-Muller算法算法:
+如果概率密度分布函数p(x)p(x)p(x)是连续分布，如果这个分布可以计算累积分布函数
+利用Box-Muller变换生成高斯分布随机数,可以通过计算CDF的反函数，获得采样
+"""""""""
+def sample_0():
+    x=np.random.rand()
+    y=np.random.rand()
+    R=np.sqrt(-2*np.log(x))
+    theta=2*np.pi*y
+    z0=R*np.cos(theta)
+    z1=R*np.sin(theta)
+    return z0,z1
+
+def sampleplot():
+    list_1=[]
+    list_2=[]
+    n=1000
+    for i in range(n):
+        x,y=sample_0()
+        list_1.append(x)
+        list_2.append(y)
+    x=np.reshape(list_1,n,1)
+    y=np.reshape(list_2,n,1)
+    z=(np.exp(-x**2/2)/(np.sqrt(2*np.pi)))*(np.exp(-y**2/2)/(np.sqrt(2*np.pi)))
+    ax = plt.figure().add_subplot(111, projection='3d')
+    ax.scatter(x,y,z,c='r', marker='o', s=100)
+
+"""""""""
+Rejection Sampling
+"""""""""
+def f1(x):                                                      #目标分布
+    return (0.3*np.exp(-(x-0.3)**2) + 0.7* np.exp(-(x-2.)**2/0.3))/1.2113
+x = np.arange(-4.,6.,0.01)
+plt.plot(x,f1(x),color = "red")                                 #画出目标分布
+size = int(50000)
+sigma=1.2
+z = np.random.normal(loc = 1.4,scale = sigma, size = size)      #参考分布
+qz = 1/(np.sqrt(2*np.pi)*sigma)*np.exp(-0.5*(z-1.4)**2/sigma**2)
+#plt.plot(x,2.5*qz)                                             #把上式qz中的z换成x 进行观察，保证参考分布在上边
+k = 2.5                                                         #试出来的，保证在目标分布上边
+u = np.random.uniform(low = 0, high =1, size = size)
+pz = 0.3*np.exp(-(z-0.3)**2) + 0.7* np.exp(-(z-2.)**2/0.3)
+alpha=pz/(2.5*qz)                                               #计算接受率
+sample = z[u<alpha]
+plt.hist(sample,bins=150, normed=True, edgecolor='black')
+
+"""""""""
+MCMC算法之
+metropolis 算法
+"""""""""
+mu = 3
+sigma = 10
+def q(x):                                              # 转移矩阵Q(参考分布)
+    return np.exp(-(x-mu)**2/(sigma**2))
+def p(x):                                              # 目标分布函数p(x)
+    return 0.3*np.exp(-(x-0.3)**2) + 0.7* np.exp(-(x-2.)**2/0.3)
+def qsample():                                         # 采样简单的参考分布
+    return np.random.normal(mu, sigma)
+def mcmcsample(n=1000000):
+    sample=np.zeros(n)
+    sample[0]=0.5                                       #初始化一个数
+    for i in range(n-1):
+        qs=qsample()
+        u=np.random.rand()
+        alpha_=(p(qs) * q(sample[i])) / (p(sample[i]) * q(qs))
+        if u<=min(alpha_,1):
+            sample[i+1]=qs
+        else:
+            sample[i+1]=sample[i]
+    return sample
+
+x = np.arange(0, 4, 0.1)
+realdata = p(x)
+sampledata = mcmcsample()
+plt.plot(x, realdata, 'g', lw = 3)  # 理想数据
+plt.plot(x,q(x),'r')  # Q(x)转移矩阵的数据
+plt.hist(sampledata,bins=x,normed=True,fc='c')  # 采样生成的数据
+plt.show()
+
+#Gibbs吉布斯采样
+def p_x_given_y(y, mus, sigmas):
+    mu = mus[0] + sigmas[1, 0] / sigmas[0, 0] * (y - mus[1])
+    sigma = sigmas[0, 0] - sigmas[1, 0] / sigmas[1, 1] * sigmas[1, 0]
+    return np.random.normal(mu, sigma)
+def p_y_given_x(x, mus, sigmas):
+    mu = mus[1] + sigmas[0, 1] / sigmas[1, 1] * (x - mus[0])
+    sigma = sigmas[1, 1] - sigmas[0, 1] / sigmas[0, 0] * sigmas[0, 1]
+    return np.random.normal(mu, sigma)
+def gibbs(mus,sigmas,N=50000):
+    samples=np.zeros((N,2))
+    y = np.random.rand() * 10
+    for i in range(N):
+        x=p_x_given_y(y,mus,sigmas)
+        y=p_y_given_x(x,mus,sigmas)
+        samples[i,:]=x,y
+    return samples
+mus = np.array([5, 5])
+sigmas = np.array([[1, .9], [.9, 1]])
+x,y = np.random.multivariate_normal(mus, sigmas,10000).T
+sns.jointplot(x,y,kind="kde")
+samples = gibbs(mus, sigmas)
+sns.jointplot(samples[:, 0], samples[:, 1])
