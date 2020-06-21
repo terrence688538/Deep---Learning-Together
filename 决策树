@@ -1,0 +1,131 @@
+import numpy as np
+import pandas as pd
+from sklearn import tree
+from sklearn.tree import DecisionTreeClassifier
+import graphviz
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction import DictVectorizer
+
+def createDataSet():
+    row_data={'no surfacing':[1,1,1,0,0],
+              'flippers':[1,1,0,1,1],
+              'fish':['yes','yes','no','no','no']}
+    dataSet=pd.DataFrame(row_data)
+    return dataSet
+
+dataSet=createDataSet()
+
+def calcShannonEnt(dataSet):
+    n=dataSet.shape[0]
+    iset=dataSet.iloc[:,-1].value_counts()
+    p=iset/n
+    ent=(-p*np.log2(p)).sum()
+    return ent
+
+ent=calcShannonEnt(dataSet)
+
+def bestSplit(dataSet):
+    baseEnt=calcShannonEnt(dataSet)
+    bestGain=0
+    axis=-1
+    for i in range(dataSet.shape[1]-1):
+        levels=dataSet.iloc[:,-1].value_counts().index
+        ents=0
+        for j in levels:
+            childSet=dataSet[dataSet.iloc[:,-1]==j]
+            ent=calcShannonEnt(childSet)
+            ents +=(childSet.shape[0]/dataSet.shape[0])*ent
+        infoGain=baseEnt-ents
+        if infoGain>bestGain:
+            bestGain=infoGain
+            axis=i
+    return axis
+
+def mySplit(dataSet,axis,value):
+    col=dataSet.columns[axis]             #返回列名
+    redateSet=dataSet.loc[dataSet[col]==value,:].drop(col,axis=1)
+    return redateSet
+
+def createTree(dataSet):
+    featlist=list(dataSet.columns)
+    classlist=dataSet.iloc[:,-1].value_counts()
+    if classlist[0]==dataSet.shape[0] or dataSet.shape[1]==1:     #如果某一个特征的个数和数据的行相同，说明所有数据都是一个特征，或者这个数据只有一列，没有别的特征可以切分
+        return classlist.index[0]                                 #如果是返回标签
+    axis=bestSplit(dataSet)
+    bestfeat=featlist[axis]
+    myTree={bestfeat:{}}
+    del featlist[axis]
+    valuelist=set(dataSet.iloc[:,axis])
+    for value in valuelist:
+        myTree[bestfeat][value]=createTree(mySplit(dataSet,axis,value))
+    return myTree
+
+myTree=createTree(dataSet)
+np.save(r'D:\test\深度学习\myTree.npy',myTree)
+read_myTree=np.load(r'D:\test\深度学习\myTree.npy').item()
+
+def classify(inputTree,labels,testVec):
+    firstStr=next(iter(inputTree))           #next() 返回迭代器的下一个项目。next() 函数要和生成迭代器的iter() 函数一起使用。
+    secondDict=inputTree[firstStr]
+    featIndex=labels.index(firstStr)            #第一个节点所在的索引
+    for key in secondDict.keys():
+        if testVec[featIndex]==key:
+            if type(secondDict[key]) == dict:
+                classLabel=classify(secondDict[key],labels,testVec)
+            else:
+                classLabel=secondDict[key]
+    return classLabel
+
+def acc_classify(train,test):
+    inputTree=createTree(train)
+    labels=list(train.columns)
+    result=[]
+    for i in range(test.shape[0]):
+        testVec=test.iloc[i,:-1]
+        classLabel=classify(inputTree,labels,testVec)
+        result.append(classLabel)
+    test['predict']=result
+    acc=(test.iloc[:,-1]==test.iloc[:,-2]).mean()        #看预测和真实是否相等计算准确率
+    print(f'模型预测准确率为{acc}')
+    return test
+
+train=dataSet
+test=dataSet.iloc[:3,:]
+
+Xtrain=dataSet.iloc[:,:-1]
+Ytrain=dataSet.iloc[:,-1]
+labels=Ytrain.unique().tolist()                  #tolist转换列表
+Ytrain=Ytrain.apply(lambda x: labels.index(x))   #将文本转换为数字
+
+clf=DecisionTreeClassifier()
+clf=clf.fit(Xtrain,Ytrain)
+tree.export_graphviz(clf)
+dot_data=tree.export_graphviz(clf,                                               #我们训练好的模型
+                              out_file=None,                                     #没有输出文件
+                              feature_names=['no surfacing','flippers'],         #属性的名字
+                              class_names=['fish','not fish'],                   #标签
+                              filled=True,rounded=True,                          #填充色
+                              special_characters=True)                           #特殊形状
+graph=graphviz.Source(dot_data)
+graph.render('computer')
+
+#案例1
+lenses=pd.read_table(r'D:\资源\python入门\计划单\机器学习\machinelearninginaction\Ch03\lenses.txt')
+lenses.columns=['age','prescript','astigmatic','tearRate','class']
+x_train,x_test,y_train,y_test = train_test_split(lenses.iloc[:,:-1],lenses.iloc[:,-1],test_size=0.2)
+#x_train['class']=y_train
+#x_test['class']=y_test
+#lensesTree=createTree(x_train)
+dict_vec = DictVectorizer(sparse=False)
+x_train = dict_vec.fit_transform(x_train.to_dict(orient='record'))
+labels_new=y_train.unique().tolist()                  #tolist转换列表
+y_train=y_train.apply(lambda x: labels_new.index(x))   #将文本转换为数字
+dlf=DecisionTreeClassifier()
+dlf=dlf.fit(x_train,y_train)
+tree.export_graphviz(dlf)
+dot_data_new=tree.export_graphviz(dlf,                                               #我们训练好的模型
+                              out_file=None,                                     #没有输出文件
+                              filled=True,rounded=True,                          #填充色
+                              special_characters=True)                           #特殊形状
+graph_new=graphviz.Source(dot_data_new)
+graph_new.render('computer')
